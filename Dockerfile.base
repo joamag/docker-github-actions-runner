@@ -1,7 +1,7 @@
-FROM ubuntu:focal
+FROM ubuntu:bionic
 LABEL maintainer="myoung34@my.apsu.edu"
 
-ARG GIT_VERSION="2.26.2"
+ARG GIT_VERSION="2.27.0"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
@@ -36,7 +36,7 @@ RUN apt-get update && \
   && rm -rf /tmp/git.tgz /tmp/git-${GIT_VERSION}
 
 RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - \
-  && [[ $(lsb_release -cs) == "eoan" ]] && ( add-apt-repository "deb [arch=$(dpkg --print-architecture)] https://download.docker.com/linux/ubuntu disco stable" ) || ( add-apt-repository "deb [arch=$(dpkg --print-architecture)] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" )\
+  && [[ $(lsb_release -cs) == "bionic" ]] && ( add-apt-repository "deb [arch=$(dpkg --print-architecture)] https://download.docker.com/linux/ubuntu disco stable" ) || ( add-apt-repository "deb [arch=$(dpkg --print-architecture)] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" )\
   && apt-get update \
   && apt-get install -y docker-ce docker-ce-cli containerd.io --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
