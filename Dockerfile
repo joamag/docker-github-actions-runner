@@ -1,5 +1,5 @@
 # hadolint ignore=DL3007
-FROM myoung34/github-runner-base:latest
+FROM joamag/github-runner-base:latest
 LABEL maintainer="myoung34@my.apsu.edu"
 
 ARG GH_RUNNER_VERSION="2.263.0"
