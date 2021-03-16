@@ -1,19 +1,36 @@
 Docker Github Actions Runner
 ============================
 
-[![Docker Pulls](https://img.shields.io/docker/pulls/myoung34/github-runner.svg)](https://hub.docker.com/r/myoung34/github-runner)
+[![Docker Pulls](https://img.shields.io/docker/pulls/myoung34/github-runner.svg)](https://hub.docker.com/r/myoung34/github-runner) [![awesome-runners](https://img.shields.io/badge/listed%20on-awesome--runners-blue.svg)](https://github.com/jonico/awesome-runners)
 
 This will run the [new self-hosted github actions runners](https://help.github.com/en/actions/automating-your-workflow-with-github-actions/hosting-your-own-runners).
 
-This has been tested and verified on:
+## Docker Artifacts ##
 
- * x86_64
- * armv7
- * arm64
- 
-**NOTE:**
-- **Only one runner can use the same RUNNER_WORKDIR if it is shared storage.**
-- **RUNNER_WORKDIR must match the source path for the bind-mounted volume at RUNNER_WORKDIR, in order for container actions to access files.**
+| Container Base | Supported Architectures | Tag Regex | Docker Tags | Description | Notes |
+| --- | --- | --- | --- | --- | --- |
+| ubuntu focal | `x86_64`,`arm64` | `/\d\.\d{3}\.\d+/` | [latest](https://hub.docker.com/r/myoung34/github-runner/tags?page=1&name=latest) | This is the latest build (Rebuilt nightly and on master merges). Tags without an OS name are included. | Tags without an OS name *before* 9/17/2020 are `eoan`. `armv7` support stopped 9/18/2020 due to inconsistent docker-ce packaging |
+| ubuntu eoan | `x86_64`,`armv7`,`arm64` | `/\d\.\d{3}\.\d+/` | | | This is deprecated as of 9/17/2020 and will no longer receive tags or be latest. Tags without an OS name before 9/17/2020 are eoan|
+| ubuntu bionic | `x86_64`,`armv7`,`arm64` | `/\d\.\d{3}\.\d+-ubuntu-bionic/` | [ubuntu-bionic](https://hub.docker.com/r/myoung34/github-runner/tags?page=1&name=ubuntu-bionic) | This is the latest build from bionic (Rebuilt nightly and on master merges). Tags with `-ubuntu-bionic` are included and created on [upstream tags](https://github.com/actions/runner/tags). | |
+| ubuntu xenial | `x86_64`,`arm64` |  `/\d\.\d{3}\.\d+-ubuntu-xenial/` | [ubuntu-xenial](https://hub.docker.com/r/myoung34/github-runner/tags?page=1&name=ubuntu-xenial) | This is the latest build from xenial (Rebuilt nightly and on master merges). Tags with `-ubuntu-xenial` are included and created on [upstream tags](https://github.com/actions/runner/tags). | `armv7` support stopped 9/18/2020 due to lack of support for [dumb-init](https://github.com/Yelp/dumb-init/releases) |
+
+These containers are built via Github actions that [copy the dockerfile](https://github.com/myoung34/docker-github-actions-runner/blob/master/.github/workflows/deploy.yml#L47), changing the `FROM` and building to provide simplicity.
+
+## Environment Variables ##
+
+| Environment Variable | Description |
+| --- | --- |
+| `RUNNER_NAME` | The name of the runner to use. Supercedes (overrides) `RUNNER_NAME_PREFIX` |
+| `RUNNER_NAME_PREFIX` | A prefix for a randomly generated name (followed by a random 13 digit string). You must not also provide `RUNNER_NAME`. Defaults to `github-runner` |
+| `ACCESS_TOKEN` | A [github PAT](https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token) to use to generate `RUNNER_TOKEN` dynamically at container start. Not using this requires a valid `RUNNER_TOKEN` |
+| `ORG_RUNNER` | Only valid if using `ACCESS_TOKEN`. This will set the runner to an org runner. Default is 'false'. Valid values are 'true' or 'false'. If this is set to true you must also set `ORG_NAME` and makes `REPO_URL` unneccesary |
+| `ORG_NAME` | The organization name for the runner to register under. Requires `ORG_RUNNER` to be 'true'. No default value. |
+| `LABELS` | A comma separated string to indicate the labels. Default is 'default' |
+| `REPO_URL` | If using a non-organization runner this is the full repository url to register under such as 'https://github.com/myoung34/repo' |
+| `RUNNER_TOKEN` | If not using a PAT for `ACCESS_TOKEN` this will be the runner token provided by the Add Runner UI (a manual process). Note: This token is short lived and will change frequently. `ACCESS_TOKEN` is likely preferred. |
+| `RUNNER_WORKDIR` | The working directory for the runner. Runners on the same host should not share this directory. Default is '/_work'. This must match the source path for the bind-mounted volume at RUNNER_WORKDIR, in order for container actions to access files. |
+| `RUNNER_GROUP` | Name of the runner group to add this runner to (defaults to the default runner group) |
+| `GITHUB_HOST` | Optional URL of the Github Enterprise server e.g github.mycompany.com. Defaults to `github.com`. |
 
 ## Examples ##
 
@@ -23,14 +40,13 @@ If you're using a RHEL based OS with SELinux, add `--security-opt=label=disable`
 
 ### Manual ###
 
-```
-# org runner 
+```shell
+# org runner
 docker run -d --restart always --name github-runner \
-  -e REPO_URL="https://github.com/myoung34/repo" \
-  -e RUNNER_NAME="foo-runner" \
   -e RUNNER_NAME_PREFIX="myrunner" \
-  -e RUNNER_TOKEN="footoken" \
+  -e ACCESS_TOKEN="footoken" \
   -e RUNNER_WORKDIR="/tmp/github-runner-your-repo" \
+  -e RUNNER_GROUP="my-group" \
   -e ORG_RUNNER="true" \
   -e ORG_NAME="octokode" \
   -e LABELS="my-label,other-label" \
@@ -41,9 +57,9 @@ docker run -d --restart always --name github-runner \
 docker run -d --restart always --name github-runner \
   -e REPO_URL="https://github.com/myoung34/repo" \
   -e RUNNER_NAME="foo-runner" \
-  -e RUNNER_NAME_PREFIX="myrunner" \
   -e RUNNER_TOKEN="footoken" \
   -e RUNNER_WORKDIR="/tmp/github-runner-your-repo" \
+  -e RUNNER_GROUP="my-group" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v /tmp/github-runner-your-repo:/tmp/github-runner-your-repo \
   myoung34/github-runner:latest
@@ -51,7 +67,7 @@ docker run -d --restart always --name github-runner \
 
 Or shell wrapper:
 
-```
+```shell
 function github-runner {
     name=github-runner-${1//\//-}
     org=$(dirname $1)
@@ -62,10 +78,8 @@ function github-runner {
         -e REPO_URL="https://github.com/${org}/${repo}" \
         -e RUNNER_TOKEN="$2" \
         -e RUNNER_NAME="linux-${repo}" \
-        -e RUNNER_NAME_PREFIX="${repo}" \
         -e RUNNER_WORKDIR="/tmp/github-runner-${repo}" \
-        -e ORG_RUNNER="true" \
-        -e ORG_NAME="octokode" \
+        -e RUNNER_GROUP="my-group" \
         -e LABELS="my-label,other-label" \
         -v /var/run/docker.sock:/var/run/docker.sock \
         -v /tmp/github-runner-${repo}:/tmp/github-runner-${repo} \
@@ -77,21 +91,20 @@ github-runner your-account/some-other-repo ARGHANOTHERGITHUBACTIONSTOKEN ubuntu-
 ```
 
 Or `docker-compose.yml`:
+
 ```yml
 version: '2.3'
 
 services:
   worker:
-    build: .
     image: myoung34/github-runner:latest
     environment:
       REPO_URL: https://github.com/example/repo
       RUNNER_NAME: example-name
-      RUNNER_NAME_PREFIX: foo
       RUNNER_TOKEN: someGithubTokenHere
       RUNNER_WORKDIR: /tmp/runner/work
-      ORG_RUNNER: true
-      ORG_NAME: example-github-org
+      RUNNER_GROUP: my-group
+      ORG_RUNNER: 'false'
       LABELS: linux,x64,gpu
     security_opt:
       # needed on SELinux systems to allow docker container to manage other docker containers
@@ -99,14 +112,14 @@ services:
     volumes:
       - '/var/run/docker.sock:/var/run/docker.sock'
       - '/tmp/runner:/tmp/runner'
-      # note: a quirk of docker-in-docker is that this path 
+      # note: a quirk of docker-in-docker is that this path
       # needs to be the same path on host and inside the container,
       # docker mgmt cmds run outside of docker but expect the paths from within
 ```
 
 ### Nomad ###
 
-```
+```hcl
 job "github_runner" {
   datacenters = ["home"]
   type = "system"
@@ -115,17 +128,21 @@ job "github_runner" {
     driver = "docker"
 
     env {
-      REPO_URL = "https://github.com/your-account/your-repo"
-      RUNNER_TOKEN   = "footoken"
-      RUNNER_WORKDIR = "/tmp/github-runner-your-repo"
-      ORG_RUNNER     = "true"
-      ORG_NAME       = "octokode"
-      LABELS         = "my-label,other-label"
+      ACCESS_TOKEN       = "footoken"
+      RUNNER_NAME_PREFIX = "myrunner"
+      RUNNER_WORKDIR     = "/tmp/github-runner-your-repo"
+      RUNNER_GROUP       = "my-group"
+      ORG_RUNNER         = "true"
+      ORG_NAME           = "octokode"
+      LABELS             = "my-label,other-label"
     }
 
     config {
-      privileged = true
       image = "myoung34/github-runner:latest"
+      
+      privileged  = true
+      userns_mode = "host"
+
       volumes = [
         "/var/run/docker.sock:/var/run/docker.sock",
         "/tmp/github-runner-your-repo:/tmp/github-runner-your-repo",
@@ -137,7 +154,7 @@ job "github_runner" {
 
 ### Kubernetes ###
 
-```
+```yml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -165,7 +182,7 @@ spec:
         image: myoung34/github-runner:latest
         env:
         - name: ORG_RUNNER
-          value: true
+          value: "true"
         - name: ORG_NAME
           value: octokode
         - name: LABELS
@@ -182,6 +199,8 @@ spec:
               fieldPath: metadata.name
         - name: RUNNER_WORKDIR
           value: /tmp/github-runner-your-repo
+        - name: RUNNER_GROUP
+          value: my-group
         volumeMounts:
         - name: dockersock
           mountPath: /var/run/docker.sock
@@ -191,7 +210,7 @@ spec:
 
 ## Usage From GH Actions Workflow ##
 
-```
+```yml
 name: Package
 
 on:
@@ -211,13 +230,12 @@ jobs:
 
 A runner token can be automatically acquired at runtime if `ACCESS_TOKEN` (a GitHub personal access token) is a supplied. This uses the [GitHub Actions API](https://developer.github.com/v3/actions/self_hosted_runners/#create-a-registration-token). e.g.:
 
-```
+```shell
 docker run -d --restart always --name github-runner \
   -e ACCESS_TOKEN="footoken" \
-  -e REPO_URL="https://github.com/myoung34/repo" \
   -e RUNNER_NAME="foo-runner" \
-  -e RUNNER_NAME_PREFIX="myrunner" \
   -e RUNNER_WORKDIR="/tmp/github-runner-your-repo" \
+  -e RUNNER_GROUP="my-group" \
   -e ORG_RUNNER="true" \
   -e ORG_NAME="octokode" \
   -e LABELS="my-label,other-label" \
@@ -225,3 +243,17 @@ docker run -d --restart always --name github-runner \
   -v /tmp/github-runner-your-repo:/tmp/github-runner-your-repo \
   myoung34/github-runner:latest
 ```
+
+## Create GitHub personal access token  ##
+
+Creating GitHub personal access token (PAT) for using by self-hosted runner make sure the following scopes are selected:
+
+* repo (all)
+* admin:org (all) **_(mandatory for organization-wide runner)_**
+* admin:public_key - read:public_key
+* admin:repo_hook - read:repo_hook
+* admin:org_hook
+* notifications
+* workflow
+
+Also, when creating a PAT for self-hosted runner which will process events from several repositories of the particular organization, create the PAT using organization owner account. Otherwise your new PAT will not have sufficient privileges for all repositories.

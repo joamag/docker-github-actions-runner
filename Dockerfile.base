@@ -58,4 +58,3 @@ RUN apt-get update && \
   && chmod +x /usr/local/bin/docker-compose \
   && rm -rf /var/lib/apt/lists/* \
   && rm -rf /tmp/*
-  
